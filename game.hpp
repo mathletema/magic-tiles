@@ -4,6 +4,7 @@
 #include "SDL2/SDL_mixer.h"
 #include "display.hpp"
 #include "song.hpp"
+#include "notes.hpp"
 
 namespace Game {
 
@@ -18,6 +19,7 @@ private:
     SDL_Event event;
     deque<Bar::Bar> bars; 
     Song::Song song;
+    Notes::Notes notes;
     int cur_beat[4];
 
     int init();
@@ -27,6 +29,7 @@ private:
     void drawBars();
     void barsGC();
     bool songOver();
+    bool gameOver();
     void handleKeyDown(SDL_Event e);
     int quit();
 
@@ -48,7 +51,7 @@ int Game::init() {
         {
             printf( "SDL_mixer could not initialize! SDL_mixer Error: %s\n", Mix_GetError() );
         }
-    gMusic = Mix_LoadMUS( "assets/music/senorita.wav" );
+    gMusic = Mix_LoadMUS( "assets/notes/senorita.wav" );
 
     return 0;
 }
@@ -92,6 +95,14 @@ void Game::barsGC() {
     }
 }
 
+bool Game::gameOver() {
+    if (bars.empty()) return false;
+    for (auto b: bars) {
+        if (!b.touched && b.pos + b.len > 1) return true;
+    }
+    return false;
+}
+
 bool Game::songOver() {
     for (int i = 0; i < 4; i++) {
         if (cur_beat[i] < song.num_beats[i]) {
@@ -108,6 +119,13 @@ void Game::run() {
     double dt = 1.0 / 60.0;
 
     while (!quit) {
+        // if (gameOver()) {
+        //     quit = true;
+        //     cout << "GAME OVER!\n";
+        //     SDL_Delay(1000);
+        //     break;
+        // }
+
         while (SDL_PollEvent(&event) != 0) {
             switch (event.type) {
                 case SDL_QUIT:
@@ -154,6 +172,24 @@ void Game::handleKeyDown(SDL_Event e) {
             c = 2; break;
         case SDLK_4:
             c = 3; break;
+        case SDLK_a:
+            notes.play_note("C4"); break;
+        case SDLK_s:
+            notes.play_note("D4"); break;
+        case SDLK_d:
+            notes.play_note("E4"); break;
+        case SDLK_f:
+            notes.play_note("F4"); break;
+        case SDLK_g:
+            notes.play_note("G4"); break;
+        case SDLK_h:
+            notes.play_note("A4"); break;
+        case SDLK_j:
+            notes.play_note("B4"); break;
+        case SDLK_k:
+            notes.play_note("C5"); break;
+
+
     }
     if (c >= 0) {
         if (bars.empty()) return;
@@ -175,4 +211,4 @@ Game::~Game() {
     quit();
 }
 
-} // namespace Game
+}
