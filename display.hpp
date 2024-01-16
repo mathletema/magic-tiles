@@ -1,10 +1,9 @@
 #include <iostream>
 #include "SDL2/SDL.h"
-#include "bar.hpp"
+#include "song.hpp"
 
 using namespace std;
 
-namespace Display {
 class Display {
 private:
     float WIDTH, HEIGHT;
@@ -22,7 +21,7 @@ public:
     ~Display();
     void clear();
     void draw(int col, float pos);
-    void draw_bar(Bar::Bar bar);
+    void draw_bar(bar_t bar, int col);
     void render();
 }; 
 
@@ -76,11 +75,11 @@ void Display::draw(int col, float pos) {
     SDL_RenderFillRect(ren, &rect);
 }
 
-void Display::draw_bar(Bar::Bar bar) {
+void Display::draw_bar(bar_t bar, int col) {
     SDL_Rect rect;
-    rect.x = (float) bar.col * WIDTH / 4;
+    rect.x = (float) col * WIDTH / 4;
     rect.w = (float) WIDTH / 4;
-    rect.y = (float) bar.pos * HEIGHT;
+    rect.y = (float) bar.start * HEIGHT;
     rect.h = (float) bar.len * HEIGHT;
 
     if (bar.touched) SDL_SetRenderDrawColor(ren, tchd_fill.r, tchd_fill.g, tchd_fill.b, tchd_fill.a);
@@ -98,5 +97,4 @@ int Display::quit() {
     SDL_DestroyWindow(win);
     SDL_Quit();
     return 0;
-}
 }

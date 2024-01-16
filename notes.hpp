@@ -1,14 +1,9 @@
-#ifndef NOTES_H
-#define NOTES_H
-
 #include <cstdint>
 #include <fstream>
 #include <iostream>
 #include "SDL2/SDL_mixer.h"
 
 using namespace std;
-
-namespace Notes {
 
 typedef uint8_t key_t;
 
@@ -28,16 +23,18 @@ string key_to_string(key_t inp) {
     return res;
 }
 
-class Notes {
+class Keyboard {
 private:
     Mix_Chunk* notes[128];
+    Mix_Chunk* fail;
 public:
-    Notes();
-    ~Notes();
+    Keyboard();
+    ~Keyboard();
     void play_note(const char *note);
+    void play_fail();
 };
 
-Notes::Notes() {
+Keyboard::Keyboard() {
     if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_AUDIO ) < 0 )
     {
         printf( "SDL could not initialize! SDL Error: %s\n", SDL_GetError() );
@@ -53,21 +50,23 @@ Notes::Notes() {
     for (int i = 0; i < 128; i++) {
         notes[i] = Mix_LoadWAV(("./assets/notes/" + key_to_string(i) + ".wav").c_str());
     }
+
+    fail = Mix_LoadWAV("./assets/effects/fail.wav");
 }
 
-void Notes::play_note(const char* note) {
+void Keyboard::play_note(const char* note) {
     key_t note_ = string_to_key(note);
     Mix_PlayChannel(-1 , notes[note_], 0);
 }
 
-Notes::~Notes() {
+void Keyboard::play_fail() {
+    Mix_PlayChannel(-1, fail, 0);
+}
+
+Keyboard::~Keyboard() {
     for (int i = 0; i < 128; i++) {
         Mix_FreeChunk(notes[i]);
         notes[i] = NULL;
     }
     Mix_Quit();
 }
-
-
-}
-#endif

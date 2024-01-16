@@ -1,5 +1,5 @@
 *.vscode*
-*.exe*
-*.wav*
-*.aiff*
-*.dll*
+*.exe
+*.wav
+*.aiff
+*.dll

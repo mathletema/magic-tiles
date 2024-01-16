@@ -6,24 +6,25 @@
 #include "song.hpp"
 #include "notes.hpp"
 
-namespace Game {
-
 Mix_Music* gMusic = NULL;
 
 class Game {
 private:
     const char* TITLE;
     int WIDTH, HEIGHT;
-    int SPEED = 2;
-    Display::Display* display;
+    int SPEED = 2.2;
+    
+    Display* display;
     SDL_Event event;
-    deque<Bar::Bar> bars; 
-    Song::Song song;
-    Notes::Notes notes;
-    int cur_beat[4];
+    
+    Keyboard keyboard;
+
+    song_t song;
+    deque<bar_t> bars[4];
+    size_t cur_beat[4];
 
     int init();
-    void spawnBar(int col, float length);
+    void spawnBar(int col, bar_t bar);
     void scheduleBars(int col, float t);
     void moveBars(float dt);
     void drawBars();
@@ -36,7 +37,7 @@ private:
 public:
     Game(const char* title, int width, int height);
     ~Game();
-    void setSong(Song::Song song_);
+    void setSong(song_t song_);
     void run();
 };
 
@@ -45,7 +46,7 @@ Game::Game(const char* title, int width, int height) : TITLE(title), WIDTH(width
 }
 
 int Game::init() {
-    display = new Display::Display(TITLE, WIDTH, HEIGHT);
+    display = new Display(TITLE, WIDTH, HEIGHT);
 
     if( Mix_OpenAudio( 44100, MIX_DEFAULT_FORMAT, 2, 2048 ) < 0 )
         {
@@ -53,59 +54,74 @@ int Game::init() {
         }
     gMusic = Mix_LoadMUS( "assets/notes/senorita.wav" );
 
+    cout << "Game started!\n";
     return 0;
 }
 
-void Game::setSong(Song::Song song_) {
+void Game::setSong(song_t song_) {
     song = song_;
     for (int i = 0; i < 4; i++) cur_beat[i] = 0;
 }
 
-void Game::spawnBar(int col, float length) {
-    bars.push_back({.col= col, .pos = -length, .len=length});
+void Game::spawnBar(int col, bar_t bar) {
+    bar_t b;
+    b.start = -1 - bar.len; b.len=bar.len; b.touched=false; b.freq=bar.freq;
+    bars[col].push_back(b);
 }
 
 void Game::scheduleBars(int col, float t) {
-    if (cur_beat[col] >= song.num_beats[col]) return;
-    if (SPEED * t > song.start[col][cur_beat[col]]) {
-        spawnBar(col, 1 * (song.end[col][cur_beat[col]] - song.start[col][cur_beat[col]]));
+    if (cur_beat[col] >= song.bars[col].size()) return;
+    if (SPEED * t > song.bars[col][cur_beat[col]].start) {
+        spawnBar(col, song.bars[col][cur_beat[col]]);
         cur_beat[col]++;
     }
 }
 
 void Game::moveBars(float dt) {
-    if (bars.empty()) return;
-    for (size_t i = 0; i < bars.size(); i++) {
-        bars[i].pos += SPEED * dt;
+    for (int col = 0; col < 4; col++) {
+        for (size_t i = 0; i < bars[col].size(); i++) {
+            bars[col][i].start += SPEED * dt;
+        }
     }
+    
 }
 
 void Game::drawBars() {
-    if (bars.empty()) return;
     int i = 0;
-    for (auto b: bars) {
-        display->draw_bar(b);
-        ++i;
+    for (int col = 0; col < 4; col++) {
+        for (auto b: bars[col]) {
+            display->draw_bar(b, col);
+            ++i;
+        }
     }
 }
 
 void Game::barsGC() {
-    while (!bars.empty() && bars.front().pos >= 1) {
-        bars.pop_front();
+    for (int col = 0; col < 4; col++) {
+        while (!bars[col].empty() && bars[col].front().start >= 1) {
+            bars[col].pop_front();
+        }
     }
 }
 
 bool Game::gameOver() {
-    if (bars.empty()) return false;
-    for (auto b: bars) {
-        if (!b.touched && b.pos + b.len > 1) return true;
+    bool all_empty = true;
+    for (int col = 0; col < 4; col++) {
+        if (!bars[col].empty()) all_empty = false;
+    }
+    if (all_empty) return false;
+
+    for (int col = 0; col < 4; col++) {
+        for (auto b: bars[col]) {
+            if (!b.touched && b.start + b.len > 1) return true;
+        }
     }
     return false;
 }
 
 bool Game::songOver() {
-    for (int i = 0; i < 4; i++) {
-        if (cur_beat[i] < song.num_beats[i]) {
+    for (int col = 0; col < 4; col++) {
+        if (cur_beat[col] < song.bars[col].size()) {
             return false;
         }
     }
@@ -118,13 +134,15 @@ void Game::run() {
     double t = 0.0;
     double dt = 1.0 / 60.0;
 
+    cout << "Starting game loop!\n";
     while (!quit) {
-        // if (gameOver()) {
-        //     quit = true;
-        //     cout << "GAME OVER!\n";
-        //     SDL_Delay(1000);
-        //     break;
-        // }
+        if (gameOver()) {
+            quit = true;
+            keyboard.play_fail();
+            cout << "GAME OVER!\n";
+            SDL_Delay(1000);
+            break;
+        }
 
         while (SDL_PollEvent(&event) != 0) {
             switch (event.type) {
@@ -135,8 +153,10 @@ void Game::run() {
                     handleKeyDown(event);
                     break;
                 case SDL_MOUSEBUTTONDOWN:
-                    if (event.button.button == SDL_BUTTON_LEFT)
-                        spawnBar(event.button.x * 4 / WIDTH, 0.25);
+                    if (event.button.button == SDL_BUTTON_LEFT) {
+                        bar_t b; b.len = 0.25; b.freq = "c4";
+                        spawnBar(event.button.x * 4 / WIDTH, b);
+                    }
                     break;
             }
         }
@@ -173,29 +193,28 @@ void Game::handleKeyDown(SDL_Event e) {
         case SDLK_4:
             c = 3; break;
         case SDLK_a:
-            notes.play_note("C4"); break;
+            keyboard.play_note("C4"); break;
         case SDLK_s:
-            notes.play_note("D4"); break;
+            keyboard.play_note("D4"); break;
         case SDLK_d:
-            notes.play_note("E4"); break;
+            keyboard.play_note("E4"); break;
         case SDLK_f:
-            notes.play_note("F4"); break;
+            keyboard.play_note("F4"); break;
         case SDLK_g:
-            notes.play_note("G4"); break;
+            keyboard.play_note("G4"); break;
         case SDLK_h:
-            notes.play_note("A4"); break;
+            keyboard.play_note("A4"); break;
         case SDLK_j:
-            notes.play_note("B4"); break;
+            keyboard.play_note("B4"); break;
         case SDLK_k:
-            notes.play_note("C5"); break;
-
-
+            keyboard.play_note("C5"); break;
     }
-    if (c >= 0) {
-        if (bars.empty()) return;
-        for (size_t i = 0; i < bars.size(); i++) {
-            if (bars[i].col == c && !bars[i].touched) {
-                bars[i].touched = true;
+    if (c >= 0 && !bars[c].empty()) {
+        for (size_t i = 0; i < bars[c].size(); i++) {
+            if (!bars[c][i].touched) {
+                bars[c][i].touched = true;
+                keyboard.play_note(bars[c][i].freq.c_str());
+                break;
             } 
         }
     }
@@ -209,6 +228,4 @@ int Game::quit() {
 Game::~Game() {
     cout << "Game quitting\n";
     quit();
-}
-
 }
